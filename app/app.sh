@@ -193,7 +193,6 @@ main() {
             print_help >&2
             exit 2
             ;;
-    esac
 }
 
 main "$@"
