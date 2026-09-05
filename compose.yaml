@@ -1,0 +1,11 @@
+services:
+  devops-tool:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: devops-tool:local
+    container_name: devops-tool
+    # Override the command per-run, e.g.:
+    #   docker compose run --rm devops-tool system-info
+    #   docker compose run --rm devops-tool check-host example.com
+    command: ["help"]
