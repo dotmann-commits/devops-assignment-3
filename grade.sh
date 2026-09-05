@@ -91,10 +91,10 @@ fi
 info "Application behaviour (app/app.sh)"
 if [ -x app/app.sh ]; then
     OUT=$(./app/app.sh help 2>&1); RC=$?
-    [ "${RC}" -eq 0 ] && echo "${OUT}" | grep -qi "Usage" && pass "help works" || fail "help did not behave as expected"
+    [ "${RC}" -eq 0 ] && grep -qi "Usage" <<< "${OUT}" && pass "help works" || fail "help did not behave as expected"
 
     OUT=$(./app/app.sh system-info 2>&1); RC=$?
-    [ "${RC}" -eq 0 ] && echo "${OUT}" | grep -qi "Hostname" && pass "system-info works" || fail "system-info did not behave as expected"
+    [ "${RC}" -eq 0 ] && grep -qi "Hostname" <<< "${OUT}" && pass "system-info works" || fail "system-info did not behave as expected"
 
     ./app/app.sh bogus-command >/dev/null 2>&1; RC=$?
     [ "${RC}" -eq 2 ] && pass "invalid command exits 2" || fail "invalid command should exit 2 (got ${RC})"
@@ -165,7 +165,8 @@ if [ -d .git ]; then
         fail "fewer than 5 commits found (${COMMIT_COUNT})"
     fi
 
-    if git log --merges --oneline 2>/dev/null | grep -q .; then
+    MERGE_COUNT=$(git log --merges --oneline 2>/dev/null | wc -l | tr -d ' ')
+    if [ "${MERGE_COUNT}" -gt 0 ]; then
         pass "merge commit found in history"
     else
         fail "no merge commit found (feature branch should be merged into main)"
