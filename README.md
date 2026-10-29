@@ -1,10 +1,8 @@
-# Assignment 3 — CI/CD with GitHub Actions
+# Assignment 3: CI/CD with GitHub Actions
 
-A local CI pipeline for a Bash application (`app/app.sh`), built with
-GitHub Actions. The pipeline validates code (lint), runs the application
-test suite, and builds/smoke-tests a Docker image — no cloud deployment.
+A GitHub Actions pipeline for a small Bash app (`app/app.sh`). It lints the code, runs the tests and builds a Docker image. There is no deployment step.
 
-## Structure
+## Files
 
 ```
 assignment-3/
@@ -27,121 +25,72 @@ assignment-3/
 
 ## Requirements
 
-- Bash, standard coreutils.
-- Docker (for the `docker` job / `scripts/build.sh`).
-- `shellcheck` is optional — `scripts/lint.sh` uses it if present, but does
-  not require it.
+- bash
+- Docker for the build step
+- shellcheck is optional. lint.sh uses it if it is installed.
 
-## Installation / Setup
+## Setup
 
 ```bash
-git clone <your-repository-url>
+git clone <repo-url>
 cd assignment-3
 chmod +x grade.sh app/*.sh scripts/*.sh tests/*.sh
 ```
 
 ## Usage
 
-### Application
-
 ```
-app/app.sh system-info               # display system information
-app/app.sh check-host <host>         # resolve/check a host
-app/app.sh check-port <host> <port>  # validate port + check TCP connectivity
-app/app.sh help                      # display usage
+app/app.sh system-info
+app/app.sh check-host <host>
+app/app.sh check-port <host> <port>
+app/app.sh help
 ```
 
-Invalid commands or invalid/missing arguments return exit code `2`.
+An unknown command or a missing or invalid argument exits with code 2.
 
-### Docker
+Docker:
 
 ```bash
 docker build -t devops-tool .
 docker run --rm devops-tool help
 docker run --rm devops-tool system-info
-
 docker compose run --rm devops-tool system-info
 ```
 
-### scripts/lint.sh
+## Scripts
 
-Checks that all required files exist and runs `bash -n` against every
-shell script in the repo (syntax-only check). Runs `shellcheck` too, if it
-is installed. This is the `validate` job in CI.
+- `scripts/lint.sh` checks the required files are there and runs `bash -n` on every script. Runs shellcheck too if it is installed.
+- `tests/test.sh` runs 11 tests on app.sh without Docker: help, system-info, an invalid command, no command, check-host with no host, a valid host and a bad host, and check-port with a missing, non-numeric, too high and zero port.
+- `scripts/build.sh` builds the image and runs a few smoke tests on the container (help, system-info, invalid command, missing argument).
 
-### tests/test.sh
+## Pipeline
 
-Runs 11 tests against `app/app.sh` directly (no Docker required), covering:
-`help`, `system-info`, an invalid command, a missing host, a valid host, a
-malformed host, a missing port, a non-numeric port, an out-of-range port
-(too high and `0`), and no command at all. This is the `test` job in CI.
+`.github/workflows/ci.yml` runs on every push and pull request. It has three jobs:
 
-### scripts/build.sh
+1. validate: runs lint.sh
+2. test: runs test.sh, needs validate
+3. docker: runs build.sh, needs test
 
-Builds the `devops-tool` Docker image and runs smoke tests against the
-container: `help`, `system-info`, an invalid command, and a missing
-required argument — checking both output and exit codes. This is the
-`docker` job in CI.
+Because of `needs`, a job only starts if the one before it passed. Each job does its own checkout and chmod so it works on a fresh runner.
 
-## GitHub Actions
+## CI failure demo
 
-`.github/workflows/ci.yml` runs on `push` and `pull_request` with three
-jobs chained via `needs:`:
+On the `ci-failure-demo` branch I removed the `esac` at the end of the case statement in app.sh and pushed it. The validate job failed on `bash -n`, so test and docker were skipped. Then I put the `esac` back and pushed again, and all three jobs passed. Both runs are in the Actions tab.
 
-```
-validate → test → docker
-```
-
-- **validate** — runs `scripts/lint.sh`.
-- **test** — runs `tests/test.sh` (`needs: validate`).
-- **docker** — runs `scripts/build.sh` (`needs: test`).
-
-Each job checks out the repo and sets executable permissions before
-running its script, so the workflow works from a clean clone.
-
-### CI failure demonstration
-
-To prove the pipeline actually catches problems:
-
-1. A branch (`ci-failure-demo`) was created off `main`.
-2. A deliberate syntax error was introduced in `app/app.sh` (an unclosed
-   `case` statement) and pushed.
-3. The `validate` job failed on that branch (`bash -n` caught the syntax
-   error), which — because of `needs:` — prevented `test` and `docker`
-   from running at all.
-4. The syntax error was reverted, the fix was pushed, and the workflow
-   passed end-to-end (`validate` → `test` → `docker`, all green).
-
-See the repository's **Actions** tab and the `ci-failure-demo` branch's
-commit history for the failing run followed by the passing run after the
-fix.
-
-## Testing
+## Testing locally
 
 ```bash
-chmod +x grade.sh app/*.sh scripts/*.sh tests/*.sh
 ./grade.sh
 ```
 
-`grade.sh` checks: repository structure, Bash syntax, executable
-permissions, workflow triggers (`push`/`pull_request`), the three required
-jobs and their `needs:` dependency chain, `app.sh` behaviour (valid/invalid
-input and exit codes), `scripts/lint.sh`, `tests/test.sh` (11 tests, all
-passing), `scripts/build.sh` (Docker build + smoke tests), and basic Git
-history (5+ commits, a merged feature branch).
+This checks the structure, syntax, permissions, the workflow triggers and jobs, app.sh behaviour, lint, tests, the Docker build and the git history.
 
-## Assumptions
+## Notes
 
-- "Lightweight Linux base image" is Alpine Linux, matching Assignment 2.
-- CI runs on `ubuntu-latest` GitHub-hosted runners; no self-hosted runner
-  or cloud deployment step is used, per the assignment brief.
-- `check-host`/`check-port` treat DNS-resolution or `ping` failures as
-  runtime failures (exit `1`), reserving exit `2` strictly for invalid
-  input (missing/malformed host, missing/invalid port).
+- Alpine is used for the image, same as assignment 2.
+- The pipeline runs on GitHub's ubuntu-latest runners.
+- check-host and check-port exit 1 when DNS or ping fails, and 2 only for bad input.
 
-## Git Workflow
+## Git
 
-Built with a `feature/ci-pipeline` branch used to develop the GitHub
-Actions workflow and Docker smoke tests in isolation, merged into `main`.
-A separate `ci-failure-demo` branch was used to demonstrate a failing and
-then passing CI run, as described above.
+The workflow and Docker smoke tests were built on `feature/ci-pipeline` and merged into main. `ci-failure-demo` was used for the failing and fixed CI runs.
